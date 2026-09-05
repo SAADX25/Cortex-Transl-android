@@ -1,0 +1,150 @@
+<resources>
+    <string name="app_name">Cortex Translate</string>
+
+    <!-- Permissions -->
+    <string name="permission_overlay_title">Draw Over Other Apps</string>
+    <string name="permission_overlay_description">Needed for the floating button and on-screen translation overlay.</string>
+    <string name="permission_notification_title">Show Notifications</string>
+    <string name="permission_notification_description">Keeps the translator running with a quiet status notification.</string>
+
+    <!-- Permission Screen -->
+    <string name="permissions_setup_title">Quick setup</string>
+    <string name="permissions_setup_subtitle">Two permissions. Then one tap translates any screen — offline.</string>
+    <string name="grant_permission">Grant</string>
+    <string name="permission_granted">Granted</string>
+    <string name="continue_button">Continue</string>
+    <string name="all_permissions_granted">You\'re ready. Start the floating translator next.</string>
+    <string name="permissions_progress">%1$d / %2$d permissions granted</string>
+
+    <!-- Service Notification -->
+    <string name="notification_channel_name">Screen Translation</string>
+    <string name="notification_channel_description">Shown while the screen translator is active</string>
+    <string name="notification_title">Translate</string>
+    <string name="notification_text">Tap to translate</string>
+    <string name="notification_action_stop">Stop</string>
+    <string name="notification_action_translate">Translate</string>
+
+    <!-- Overlay -->
+    <string name="bubble_content_description">Translate screen</string>
+    <string name="bubble_translating">Translating screen</string>
+    <string name="close_translation">Close translation</string>
+    <string name="overlay_subtitle">%1$s → %2$s · Offline</string>
+    <string name="overlay_subtitle_cloud">%1$s → %2$s · DeepL</string>
+    <string name="overlay_subtitle_libre">%1$s → %2$s · LibreTranslate</string>
+    <string name="overlay_subtitle_mymemory">%1$s → %2$s · Free</string>
+    <string name="no_text_found">No text found on screen</string>
+    <string name="error_translation_failed">Couldn\'t translate this screen</string>
+    <string name="error_overlay_permission">Allow “Display over other apps” to show the translator bubble</string>
+    <string name="error_capture_inactive">Screen capture is not active</string>
+    <string name="screen_capture_denied">Screen capture permission is required for translation</string>
+    <string name="overlay_permission_required">Please grant “Draw over other apps” first</string>
+
+    <!-- Home Screen -->
+    <string name="start_translator">Start floating translator</string>
+    <string name="stop_translator">Stop translator</string>
+    <string name="translator_active_short">Floating translator is on</string>
+    <string name="swap_languages">Swap languages</string>
+    <string name="translation_engine">Translation Engine</string>
+    <string name="translation_mode">Translation Mode</string>
+    <string name="language_auto">Auto detect</string>
+    <string name="engine_mlkit">On-device · Offline</string>
+    <string name="engine_deepl">DeepL API</string>
+    <string name="engine_deepl_short">DeepL</string>
+    <string name="engine_mlkit_short">Offline</string>
+    <string name="engine_libre">LibreTranslate · Free</string>
+    <string name="engine_libre_short">Libre</string>
+    <string name="engine_mymemory">MyMemory · Free</string>
+    <string name="engine_mymemory_short">Free</string>
+    <string name="mode_fullscreen">Full-screen mode</string>
+    <string name="mode_region">Region mode</string>
+    <string name="mode_fixed_region">Fixed region mode</string>
+    <string name="mode_auto_region">Auto region mode</string>
+    <string name="mode_auto_fullscreen">Auto full-screen mode</string>
+    <string name="default_translation_mode">Default translation mode</string>
+    <string name="floating_icon_actions">Floating icon actions</string>
+    <string name="double_tap_action">Double-tap action</string>
+    <string name="bubble_action_open_menu">Open options menu</string>
+    <string name="bubble_action_translate">Translate screen</string>
+    <string name="bubble_action_none">None</string>
+    <string name="bubble_gestures_hint">Tap to translate · Long-press for options · Drag down to close</string>
+    <string name="drop_to_remove">Drop here to stop the translator</string>
+    <string name="delete_zone_label">Stop</string>
+    <string name="qs_tile_on">Translator on</string>
+    <string name="qs_tile_off">Translator off</string>
+    <string name="qs_tile_label">Translate</string>
+    <string name="languages_and_engine">Languages &amp; translation engine</string>
+    <string name="offline_download_needed">Download language packs to translate without internet</string>
+    <string name="download_pair">Download languages</string>
+    <string name="how_it_works_body">Start the floating translator, then open any app. Tap the floating button to translate what is on screen, or long-press for advanced options. To stop, drag the button to the close icon at the bottom.\n\nWith On-device · Offline, text is read and translated locally after you download a language pack. Nothing is sent to the cloud.</string>
+    <string name="overlay_missing_banner">Overlay permission was turned off. Restore it to use the bubble.</string>
+    <string name="restore_overlay">Restore</string>
+    <string name="search_languages">Search languages</string>
+    <string name="select_language">Select language</string>
+    <string name="help_title">Help</string>
+
+    <!-- Navigation -->
+    <string name="nav_home">Home</string>
+    <string name="nav_translate">Translate</string>
+    <string name="nav_more">More</string>
+
+    <!-- Languages -->
+    <string name="languages_subtitle">Download only what you need. Each pack is about 30 MB and works fully offline.</string>
+    <string name="language_downloaded">Downloaded</string>
+    <string name="language_not_downloaded">Not downloaded</string>
+    <string name="download_language">Download</string>
+    <string name="delete_language">Remove</string>
+    <string name="model_size_estimate">~30 MB</string>
+    <string name="language_download_failed">Download failed. Check your connection and try again.</string>
+
+    <!-- Settings -->
+    <string name="settings_language">Language</string>
+    <string name="settings_quick_access">Quick Settings</string>
+    <string name="settings_quick_access_on">Available</string>
+    <string name="settings_bubble_opacity">Transparency</string>
+    <string name="bubble_opacity_value">%d%%</string>
+    <string name="settings_dark_mode">Dark Mode</string>
+    <string name="settings_voice">Voice Settings</string>
+    <string name="settings_floating_button">Floating button</string>
+    <string name="settings_bubble_size">Size</string>
+    <string name="settings_bubble_color">Color</string>
+    <string name="bubble_size_small">Small</string>
+    <string name="bubble_size_medium">Medium</string>
+    <string name="bubble_size_large">Large</string>
+    <string name="settings_single_app_capture">Enable single app screen capture</string>
+    <string name="settings_version">Version %1$s</string>
+
+    <string name="support_title">Support</string>
+    <string name="support_tutorial">Tutorial</string>
+    <string name="support_battery_optimization">Self-closing app problem</string>
+    <string name="support_help_feedback">Help &amp; Feedback</string>
+    <string name="support_share">Share</string>
+    <string name="share_text">Cortex Translate — instant on-screen translation, fully offline after you download a language pack.</string>
+    <string name="tutorial_body">1. Grant overlay permission.\n2. Download English and your target language.\n3. Tap the power button to start the floating C bubble.\n4. Open any app and tap the bubble to translate. Long-press opens options. Drag the bubble down to the red button to close it.</string>
+    <string name="voice_coming_soon">Voice translation is coming in a later update. Screen translation is ready now.</string>
+    <string name="legal_title">Legal</string>
+    <string name="legal_terms">Terms of Service</string>
+    <string name="terms_body">Cortex Translate processes screen text on your device when you use Offline translation. Screen capture runs only while the floating translator is on. Do not use the app to capture private content you are not allowed to record.</string>
+
+    <!-- General -->
+    <string name="ok">OK</string>
+    <string name="cancel">Cancel</string>
+    <string name="error_generic">Something went wrong. Please try again.</string>
+    <string name="downloading_model">Downloading language pack…</string>
+    <string name="cannot_swap_auto_language">Choose a source language before swapping</string>
+    <string name="error_deepl_failed">DeepL translation failed</string>
+    <string name="error_libre_failed">LibreTranslate failed. Try another engine or your own server URL</string>
+    <string name="error_mymemory_failed">Free translation failed. Try again or switch engine</string>
+    <string name="settings_deepl_api">DeepL API key</string>
+    <string name="settings_deepl_api_subtitle">Enter your DeepL API key to translate with DeepL.</string>
+    <string name="deepl_key_saved">Custom key</string>
+    <string name="deepl_key_builtin">Not set</string>
+    <string name="deepl_key_hint">Paste your DeepL API key</string>
+    <string name="deepl_key_save">Save</string>
+    <string name="deepl_key_restore">Restore default</string>
+    <string name="deepl_needs_key">Save a DeepL API key in More first</string>
+    <string name="settings_libre_api">LibreTranslate</string>
+    <string name="settings_libre_api_subtitle">Public server by default. You can point to your own instance and add an API key if the host requires one.</string>
+    <string name="libre_url_default">Public server</string>
+    <string name="libre_url_restore">Restore default</string>
+    <string name="libre_key_hint">API key (optional)</string>
+</resources>
