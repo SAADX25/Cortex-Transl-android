@@ -53,6 +53,11 @@ class OverlayManager(
     private var deleteZone: View? = null
     private var bubbleVisible = false
     var doubleTapEnabled: Boolean = false
+    var overlayStyle: OverlayStyle = OverlayStyle()
+        set(value) {
+            field = value
+            ((translationRoot as? FrameLayout)?.getChildAt(0) as? TranslationCanvasView)?.applyStyle(value)
+        }
     private var appearanceSizeDp: Int = BubbleStyle.DEFAULT_DP
     private var appearanceColor: Int = BubbleStyle.DEFAULT_COLOR
     private var appearanceOpacity: Int = BubbleStyle.DEFAULT_OPACITY
@@ -301,6 +306,10 @@ class OverlayManager(
         val metrics = ScreenMetrics.info(context)
         val root = FrameLayout(context)
         val canvas = TranslationCanvasView(context)
+        canvas.applyStyle(overlayStyle)
+        canvas.onCopied = {
+            android.widget.Toast.makeText(context, R.string.translation_copied, android.widget.Toast.LENGTH_SHORT).show()
+        }
         try {
             canvas.setBlocks(blocks)
         } catch (error: Exception) {

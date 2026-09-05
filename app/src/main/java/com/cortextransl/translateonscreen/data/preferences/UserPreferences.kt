@@ -10,6 +10,7 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.cortextransl.translateonscreen.data.model.BubbleActions
 import com.cortextransl.translateonscreen.overlay.BubbleStyle
+import com.cortextransl.translateonscreen.overlay.OverlayStyle
 import dagger.hilt.android.qualifiers.ApplicationContext
 import android.graphics.Rect
 import kotlinx.coroutines.flow.Flow
@@ -48,6 +49,13 @@ class UserPreferences @Inject constructor(
         val BUBBLE_COLOR = intPreferencesKey("bubble_color")
         val BUBBLE_OPACITY = intPreferencesKey("bubble_opacity")
         val QUICK_ACCESS_OFFERED = booleanPreferencesKey("quick_access_offered")
+        val OVERLAY_TEXT_SCALE = intPreferencesKey("overlay_text_scale")
+        val OVERLAY_FONT = stringPreferencesKey("overlay_font")
+        val OVERLAY_BOLD = booleanPreferencesKey("overlay_bold")
+        val OVERLAY_TEXT_COLOR = intPreferencesKey("overlay_text_color")
+        val OVERLAY_BG_COLOR = intPreferencesKey("overlay_bg_color")
+        val OVERLAY_BG_OPACITY = intPreferencesKey("overlay_bg_opacity")
+        val OVERLAY_OUTLINE = booleanPreferencesKey("overlay_outline")
 
         const val AUTO_LANGUAGE = "auto"
         const val DEFAULT_SOURCE_LANGUAGE = "en"
@@ -225,6 +233,32 @@ class UserPreferences @Inject constructor(
     suspend fun setBubbleOpacity(opacity: Int) {
         context.dataStore.edit { prefs ->
             prefs[BUBBLE_OPACITY] = opacity.coerceIn(BubbleStyle.MIN_OPACITY, BubbleStyle.MAX_OPACITY)
+        }
+    }
+
+    val overlayStyle: Flow<OverlayStyle> = context.dataStore.data.map { prefs ->
+        OverlayStyle(
+            textScale = (prefs[OVERLAY_TEXT_SCALE] ?: OverlayStyle.DEFAULT_TEXT_SCALE)
+                .coerceIn(OverlayStyle.MIN_TEXT_SCALE, OverlayStyle.MAX_TEXT_SCALE),
+            fontKey = prefs[OVERLAY_FONT]?.takeIf { it in OverlayStyle.FONT_KEYS } ?: OverlayStyle.DEFAULT_FONT,
+            bold = prefs[OVERLAY_BOLD] ?: false,
+            textColor = prefs[OVERLAY_TEXT_COLOR] ?: OverlayStyle.DEFAULT_TEXT_COLOR,
+            backgroundColor = prefs[OVERLAY_BG_COLOR] ?: OverlayStyle.DEFAULT_BACKGROUND,
+            backgroundOpacity = (prefs[OVERLAY_BG_OPACITY] ?: OverlayStyle.DEFAULT_BG_OPACITY)
+                .coerceIn(OverlayStyle.MIN_BG_OPACITY, OverlayStyle.MAX_BG_OPACITY),
+            outline = prefs[OVERLAY_OUTLINE] ?: false
+        )
+    }
+
+    suspend fun setOverlayStyle(style: OverlayStyle) {
+        context.dataStore.edit { prefs ->
+            prefs[OVERLAY_TEXT_SCALE] = style.textScale
+            prefs[OVERLAY_FONT] = style.fontKey
+            prefs[OVERLAY_BOLD] = style.bold
+            prefs[OVERLAY_TEXT_COLOR] = style.textColor
+            prefs[OVERLAY_BG_COLOR] = style.backgroundColor
+            prefs[OVERLAY_BG_OPACITY] = style.backgroundOpacity
+            prefs[OVERLAY_OUTLINE] = style.outline
         }
     }
 

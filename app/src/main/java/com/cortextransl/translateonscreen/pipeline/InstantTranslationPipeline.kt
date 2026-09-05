@@ -8,6 +8,7 @@ import com.cortextransl.translateonscreen.capture.CaptureFrame
 import com.cortextransl.translateonscreen.capture.ScreenFrameCapturer
 import com.cortextransl.translateonscreen.data.model.OverlayBlock
 import com.cortextransl.translateonscreen.data.model.PipelineResult
+import com.cortextransl.translateonscreen.data.ocr.OcrEnhancer
 import com.cortextransl.translateonscreen.data.ocr.OcrRepository
 import com.cortextransl.translateonscreen.data.preferences.UserPreferences
 import com.cortextransl.translateonscreen.data.translation.DeepLClient
@@ -52,7 +53,34 @@ class InstantTranslationPipeline @Inject constructor(
                 return@withContext PipelineResult.Error(R.string.error_translation_failed)
             }
 
-            val rawBlocks = ocrRepository.recognize(ocrBitmap, sourcePref)
+            val engine = userPreferences.translationEngine.first()
+
+            // Fast path: identical picture as last time (auto modes, game dialogue
+            // that has not advanced) -> reuse the previous result, skip OCR entirely.
+            val signature = OcrEnhancer.signature(ocrBitmap)
+            val contextKey = "$region|$sourcePref|$target|$engine"
+            synchronized(cacheLock) {
+                val last = lastResult
+                if (last != null && last.contextKey == contextKey &&
+                    OcrEnhancer.similar(last.signature, signature)
+                ) {
+                    return@withContext last.result
+                }
+            }
+
+            // Region / game modes: upscale + contrast boost for stylised fonts.
+            val prepared = OcrEnhancer.prepare(
+                ocrBitmap,
+                upscale = region != null,
+                enhance = true
+            )
+            val rawBlocks = try {
+                ocrRepository.recognize(prepared.bitmap, sourcePref).map { block ->
+                    block.copy(boundingBox = prepared.mapBack(block.boundingBox))
+                }
+            } finally {
+                prepared.release()
+            }
             val ocrBlocks = rawBlocks.filter { block ->
                 !alreadyInTargetScript(block.text, target)
             }
@@ -81,12 +109,11 @@ class InstantTranslationPipeline @Inject constructor(
                 return@withContext PipelineResult.Success(blocks, detectedSource, target)
             }
 
-            val engine = userPreferences.translationEngine.first()
             // OCR blocks contain hard line breaks; translation engines produce far
             // better sentences when they see one flowing paragraph.
             val originals = ocrBlocks.map { normalizeSource(it.text) }
             val translated = try {
-                translateWithEngine(
+                translateCached(
                     engine = engine,
                     texts = originals,
                     sourcePref = sourcePref,
@@ -125,7 +152,11 @@ class InstantTranslationPipeline @Inject constructor(
                     )
                 }
             )
-            PipelineResult.Success(overlayBlocks, detectedSource, target)
+            val success = PipelineResult.Success(overlayBlocks, detectedSource, target)
+            synchronized(cacheLock) {
+                lastResult = LastResult(contextKey, signature, success)
+            }
+            success
         } catch (error: Exception) {
             Log.e(TAG, "Translation pipeline failed", error)
             PipelineResult.Error(
@@ -138,6 +169,57 @@ class InstantTranslationPipeline @Inject constructor(
                 frame?.bitmap?.takeIf { !it.isRecycled }?.recycle()
             }
         }
+    }
+
+    private val cacheLock = Any()
+    private var lastResult: LastResult? = null
+    private val translationCache = object : LinkedHashMap<String, String>(256, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, String>?): Boolean =
+            size > TRANSLATION_CACHE_SIZE
+    }
+
+    private class LastResult(val contextKey: String, val signature: ByteArray, val result: PipelineResult.Success)
+
+    /** Invalidate the "unchanged screen" fast path (e.g. after settings change). */
+    fun invalidate() {
+        synchronized(cacheLock) { lastResult = null }
+    }
+
+    /**
+     * Memoises translations per (engine, languages, text). Repeated UI strings
+     * and game dialogue that stays on screen cost nothing after the first pass.
+     */
+    private suspend fun translateCached(
+        engine: String,
+        texts: List<String>,
+        sourcePref: String,
+        detectedSource: String,
+        target: String
+    ): List<String> {
+        val prefix = "$engine|$sourcePref|$detectedSource|$target|"
+        val results = arrayOfNulls<String>(texts.size)
+        val missIdx = ArrayList<Int>()
+        val miss = ArrayList<String>()
+        synchronized(cacheLock) {
+            texts.forEachIndexed { index, text ->
+                val hit = translationCache[prefix + text]
+                if (hit != null) results[index] = hit else {
+                    missIdx += index
+                    miss += text
+                }
+            }
+        }
+        if (miss.isNotEmpty()) {
+            val fresh = translateWithEngine(engine, miss, sourcePref, detectedSource, target)
+            synchronized(cacheLock) {
+                missIdx.forEachIndexed { j, i ->
+                    val value = fresh.getOrElse(j) { miss[j] }
+                    results[i] = value
+                    if (value.isNotBlank()) translationCache[prefix + miss[j]] = value
+                }
+            }
+        }
+        return results.map { it.orEmpty() }
     }
 
     private suspend fun translateWithEngine(
@@ -267,13 +349,20 @@ class InstantTranslationPipeline @Inject constructor(
 
     companion object {
         private const val TAG = "TranslationPipeline"
+        private const val TRANSLATION_CACHE_SIZE = 600
+        private val WS = Regex("\\s+")
+        private val WS_PUNCT = Regex("[\\s\\p{Punct}]+")
+        private val WS_BOUNDARY = Regex("(?<=\\s)|(?=\\s)")
+        private val HYPHEN_BREAK = Regex("(\\p{L})-\\s*\\n\\s*(\\p{L})")
+        private val LINE_BREAK = Regex("\\s*\\n\\s*")
+        private val MULTI_SPACE = Regex("[ \\t]{2,}")
 
         /** Joins OCR lines into one paragraph and repairs hyphenated line breaks. */
         fun normalizeSource(text: String): String {
             return text
-                .replace(Regex("(\\p{L})-\\s*\\n\\s*(\\p{L})"), "$1$2")
-                .replace(Regex("\\s*\\n\\s*"), " ")
-                .replace(Regex("[ \\t]{2,}"), " ")
+                .replace(HYPHEN_BREAK, "$1$2")
+                .replace(LINE_BREAK, " ")
+                .replace(MULTI_SPACE, " ")
                 .replace(Regex("\\s+([,.;:!?،؛؟])"), "$1")
                 .trim()
         }
@@ -304,7 +393,7 @@ class InstantTranslationPipeline @Inject constructor(
         private fun protectTokens(text: String): ProtectedText {
             val tokens = ArrayList<String>()
             val sb = StringBuilder()
-            val parts = text.split(Regex("(?<=\\s)|(?=\\s)"))
+            val parts = text.split(WS_BOUNDARY)
             // Headings written in ALL CAPS ("BUY NOW") must still be translated.
             val wordsWithLetters = parts.filter { p -> p.any { it.isLetter() } }
             val capsWords = wordsWithLetters.count { p -> p.filter { it.isLetter() }.all { it.isUpperCase() } }
@@ -366,14 +455,14 @@ class InstantTranslationPipeline @Inject constructor(
             if (hasArabic(text)) {
                 // Drop echoed source words, but keep brand names / domains / codes
                 // (Eneba, Google Play, eneba.com, 4K) which belong in the translation.
-                originalTrim.split(Regex("\\s+"))
+                originalTrim.split(WS)
                     .filter { it.length >= 3 && !isProtectedToken(it) }
                     .forEach { word ->
                         text = text.replace(Regex("(?i)(?<![\\p{L}\\p{N}])${Regex.escape(word)}(?![\\p{L}\\p{N}])"), " ")
                     }
             }
             text = collapseDuplicateWords(text)
-                .replace(Regex("\\s+"), " ")
+                .replace(WS, " ")
                 .trim()
             if (text.isEmpty()) return null
             if (target.startsWith("ar")) {
@@ -386,9 +475,9 @@ class InstantTranslationPipeline @Inject constructor(
                 return null
             }
             val letters = text.filter { it.isLetter() }
-            if (letters.length < 2) return null
+            if (letters.isEmpty()) return null
             val lower = text.lowercase()
-            if (lower in setOf("و", "في", "من", "أو", "ال", "ok", "and", "in", "or")) return null
+            if (lower in setOf("و", "في", "من", "أو", "ال", "and", "in", "or")) return null
             return text
         }
 
@@ -445,7 +534,7 @@ class InstantTranslationPipeline @Inject constructor(
          * (from "Släljl L"). Such strings carry no meaning and only clutter the overlay.
          */
         private fun isArabicGibberish(text: String): Boolean {
-            val words = text.split(Regex("\\s+")).filter { it.isNotBlank() }
+            val words = text.split(WS).filter { it.isNotBlank() }
             if (words.isEmpty()) return true
             // Same letter repeated three or more times in a row.
             if (Regex("([\\u0621-\\u064A])\\1{2,}").containsMatchIn(text)) return true
@@ -464,7 +553,7 @@ class InstantTranslationPipeline @Inject constructor(
         }
 
         private fun collapseDuplicateWords(text: String): String {
-            val parts = text.split(Regex("\\s+")).filter { it.isNotBlank() }
+            val parts = text.split(WS).filter { it.isNotBlank() }
             if (parts.isEmpty()) return text
             val out = ArrayList<String>(parts.size)
             for (part in parts) {
@@ -489,7 +578,7 @@ class InstantTranslationPipeline @Inject constructor(
         }
 
         private fun normalize(text: String): String {
-            return text.lowercase().replace(Regex("[\\s\\p{Punct}]+"), "")
+            return text.lowercase().replace(WS_PUNCT, "")
         }
 
         private fun area(box: Rect): Int =

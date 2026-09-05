@@ -78,6 +78,14 @@ class ScreenFrameCapturer @Inject constructor(
         reader.setOnImageAvailableListener({ imageSource ->
             val image = imageSource.acquireLatestImage() ?: return@setOnImageAvailableListener
             try {
+                // The display can push up to 60 frames/s. Converting each one to a
+                // 10 MB bitmap burns CPU and battery while the user is just browsing.
+                // Only decode when a grab is waiting or our cached frame is stale.
+                val now = SystemClock.elapsedRealtime()
+                val cachedAt = latest.get()?.capturedAt ?: 0L
+                if (pendingGrab.get() == null && now - cachedAt < IDLE_FRAME_INTERVAL_MS) {
+                    return@setOnImageAvailableListener
+                }
                 ingest(image.toBitmap())
             } catch (error: Exception) {
                 pendingGrab.getAndSet(null)?.completeExceptionally(error)
@@ -324,6 +332,7 @@ class ScreenFrameCapturer @Inject constructor(
         private const val MAX_CAPTURE_WIDTH = 1080
         private const val FRESH_FRAME_MS = 800L
         private const val CAPTURE_TIMEOUT_MS = 2_000L
+        private const val IDLE_FRAME_INTERVAL_MS = 700L
 
         private fun even(value: Int): Int = (value and 0x7FFFFFFE).coerceAtLeast(2)
     }

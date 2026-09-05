@@ -156,13 +156,16 @@ class OcrRepository @Inject constructor() {
 
     companion object {
         private const val TAG = "OcrRepository"
-        private const val MIN_BLOCK_SIZE = 16
-        private const val MIN_BLOCK_HEIGHT = 12
-        private const val MAX_BLOCKS = 48
+        private const val MIN_BLOCK_SIZE = 10
+        private const val MIN_BLOCK_HEIGHT = 9
+        private const val MAX_BLOCKS = 90
+        private val WS_PUNCT = Regex("[\\s\\p{Punct}]+")
+        private val TRIPLE_CHAR = Regex("(.)\\1{2,}")
         const val AUTO = UserPreferences.AUTO_LANGUAGE
 
+        // Only the app's own overlay chrome; ordinary UI words (OK, Share, More…)
+        // are real content and must be translated like everything else.
         private val junkExact = setOf(
-            "ok", "cancel", "start", "share", "close", "open", "home", "more",
             "en", "ar", "offline", "deepl", "ilove pdf", "ilovepdf"
         )
 
@@ -182,11 +185,13 @@ class OcrRepository @Inject constructor() {
         private fun isNoise(text: String): Boolean {
             val t = text.trim()
             val letters = t.filter { it.isLetter() }
-            if (letters.length < 3) return true
+            // Two-letter words are legitimate UI ("OK", "AI", "Go", "TV").
+            if (letters.length < 2) return true
             if (t.startsWith("http", ignoreCase = true) || t.startsWith("www.", ignoreCase = true)) {
                 return true
             }
-            if (t.contains("→") || t.contains("->")) return true
+            // Our own overlay toolbar ("EN → AR · Offline").
+            if ((t.contains("→") || t.contains("->")) && letters.length <= 12) return true
             val lower = t.lowercase()
             if (lower in junkExact) return true
             if (junkContains.any { lower.contains(it) }) return true
@@ -200,16 +205,18 @@ class OcrRepository @Inject constructor() {
 
         private fun isGibberish(text: String): Boolean {
             // Triple identical characters in sequence (e.g. "lll", "xxx")
-            if (Regex("(.)\\1{2,}").containsMatchIn(text)) return true
+            if (TRIPLE_CHAR.containsMatchIn(text)) return true
 
-            val words = text.split(Regex("[\\s\\p{Punct}]+")).filter { it.isNotBlank() }
+            val words = text.split(WS_PUNCT).filter { it.isNotBlank() }
             if (words.isEmpty()) return true
 
             val latinWords = words.filter { w -> w.all { it in 'a'..'z' || it in 'A'..'Z' } }
             if (latinWords.isNotEmpty()) {
-                // If Latin words with length >= 3 have zero vowels (a, e, i, o, u, y), likely logo noise
+                // Latin words with length >= 4 and zero vowels are logo noise ("Slälj", "IALLL").
+                // Short ALL-CAPS acronyms (DNS, VPN, CD, PS5) are legitimate.
                 val noVowelCount = latinWords.count { w ->
-                    w.length >= 3 && !w.any { it.lowercaseChar() in "aeiouy" }
+                    w.length >= 4 && !w.any { it.lowercaseChar() in "aeiouy" } &&
+                        !(w.all { it.isUpperCase() } && w.length <= 5)
                 }
                 if (noVowelCount > 0 && noVowelCount == latinWords.size) {
                     return true
@@ -245,7 +252,7 @@ class OcrRepository @Inject constructor() {
         }
 
         private fun normalize(text: String): String {
-            return text.lowercase().replace(Regex("[\\s\\p{Punct}]+"), "")
+            return text.lowercase().replace(WS_PUNCT, "")
         }
 
         private fun similar(a: String, b: String): Boolean {

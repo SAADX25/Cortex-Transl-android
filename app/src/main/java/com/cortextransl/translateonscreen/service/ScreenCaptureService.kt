@@ -63,7 +63,7 @@ class ScreenCaptureService : Service() {
         const val ACTION_STOP = "com.cortextransl.translateonscreen.ACTION_STOP"
         const val ACTION_TRANSLATE = "com.cortextransl.translateonscreen.ACTION_TRANSLATE"
         const val ACTION_START = "com.cortextransl.translateonscreen.ACTION_START"
-        private const val AUTO_TRANSLATE_MS = 2_500L
+        private const val AUTO_TRANSLATE_MS = 1_200L
         private val runningFlag = AtomicBoolean(false)
         private val startingFlag = AtomicBoolean(false)
 
@@ -141,6 +141,9 @@ class ScreenCaptureService : Service() {
             }
         )
         overlayManager.attach()
+        serviceScope.launch {
+            userPreferences.overlayStyle.collect { style -> overlayManager.overlayStyle = style }
+        }
         serviceScope.launch {
             overlayManager.applyAppearance(
                 userPreferences.bubbleSizeDp.first(),

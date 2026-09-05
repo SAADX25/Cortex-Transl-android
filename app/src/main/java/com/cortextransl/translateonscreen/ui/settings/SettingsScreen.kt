@@ -88,6 +88,7 @@ fun SettingsScreen(
     val bubbleSize by viewModel.bubbleSizeDp.collectAsStateWithLifecycle()
     val bubbleColor by viewModel.bubbleColor.collectAsStateWithLifecycle()
     val bubbleOpacity by viewModel.bubbleOpacity.collectAsStateWithLifecycle()
+    val overlayStyle by viewModel.overlayStyle.collectAsStateWithLifecycle()
     val context = LocalContext.current
     var dialog by remember { mutableStateOf<MoreDialog?>(null) }
     var showDeeplKey by remember { mutableStateOf(false) }
@@ -110,6 +111,17 @@ fun SettingsScreen(
                 onSizeChange = viewModel::setBubbleSizeDp,
                 onColorChange = viewModel::setBubbleColor,
                 onOpacityChange = viewModel::setBubbleOpacity
+            )
+        }
+
+        Spacer(modifier = Modifier.height(20.dp))
+        SectionLabel(stringResource(R.string.settings_overlay_style))
+        Spacer(modifier = Modifier.height(8.dp))
+        SettingsListCard {
+            OverlayStyleEditor(
+                style = overlayStyle,
+                onChange = viewModel::updateOverlayStyle,
+                onReset = viewModel::resetOverlayStyle
             )
         }
 

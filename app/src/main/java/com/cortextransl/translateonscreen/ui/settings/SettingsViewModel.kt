@@ -3,6 +3,7 @@ package com.cortextransl.translateonscreen.ui.settings
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.cortextransl.translateonscreen.data.preferences.UserPreferences
+import com.cortextransl.translateonscreen.overlay.OverlayStyle
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -68,6 +69,21 @@ class SettingsViewModel @Inject constructor(
         SharingStarted.WhileSubscribed(5_000),
         UserPreferences.DEFAULT_BUBBLE_OPACITY
     )
+
+    val overlayStyle: StateFlow<OverlayStyle> = userPreferences.overlayStyle.stateIn(
+        viewModelScope,
+        SharingStarted.WhileSubscribed(5_000),
+        OverlayStyle()
+    )
+
+    fun updateOverlayStyle(transform: (OverlayStyle) -> OverlayStyle) {
+        val next = transform(overlayStyle.value)
+        viewModelScope.launch { userPreferences.setOverlayStyle(next) }
+    }
+
+    fun resetOverlayStyle() {
+        viewModelScope.launch { userPreferences.setOverlayStyle(OverlayStyle()) }
+    }
 
     fun setThemeFollowSystem() {
         viewModelScope.launch { userPreferences.setDarkModeFollowSystem() }

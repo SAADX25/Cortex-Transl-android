@@ -1,6 +1,8 @@
 package com.cortextransl.translateonscreen.overlay
 
 import android.annotation.SuppressLint
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Paint
@@ -14,6 +16,9 @@ import android.text.TextPaint
 import android.text.TextUtils
 import android.util.AttributeSet
 import android.util.Log
+import android.view.GestureDetector
+import android.view.HapticFeedbackConstants
+import android.view.MotionEvent
 import android.view.View
 import com.cortextransl.translateonscreen.data.model.OverlayBlock
 import com.cortextransl.translateonscreen.util.ScreenMetrics
@@ -54,6 +59,17 @@ class TranslationCanvasView @JvmOverloads constructor(
         strokeWidth = 0.75f * resources.displayMetrics.density
     }
 
+    private val peekPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = 0x66FFFFFF.toInt()
+        style = Paint.Style.STROKE
+        strokeWidth = 1.5f * resources.displayMetrics.density
+    }
+
+    private val flashPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        color = 0xFF4C8DFF.toInt()
+        style = Paint.Style.FILL
+    }
+
     private val textPaint = TextPaint(Paint.ANTI_ALIAS_FLAG or Paint.SUBPIXEL_TEXT_FLAG).apply {
         color = 0xFFFFFFFF.toInt()
         typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
@@ -62,10 +78,27 @@ class TranslationCanvasView @JvmOverloads constructor(
 
     private var sourceBlocks: List<OverlayBlock> = emptyList()
     private var layouts: List<DrawnBlock> = emptyList()
+    private var style: OverlayStyle = OverlayStyle()
 
     fun setBlocks(blocks: List<OverlayBlock>) {
         sourceBlocks = blocks
         relayout()
+    }
+
+    fun applyStyle(newStyle: OverlayStyle) {
+        style = newStyle
+        backgroundPaint.color = newStyle.backgroundArgb()
+        textPaint.color = newStyle.textColor
+        // Border only makes sense on dark cards; hide it on light ones.
+        borderPaint.color = if (isLight(newStyle.backgroundColor)) 0x22000000 else 0x14FFFFFF
+        if (sourceBlocks.isNotEmpty()) relayout() else invalidate()
+    }
+
+    private fun isLight(color: Int): Boolean {
+        val r = (color shr 16) and 0xFF
+        val g = (color shr 8) and 0xFF
+        val b = color and 0xFF
+        return (r * 299 + g * 587 + b * 114) / 1000 > 150
     }
 
     override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
@@ -106,16 +139,81 @@ class TranslationCanvasView @JvmOverloads constructor(
         invalidate()
     }
 
+    // ---------------------------------------------------------------------
+    // Interaction: tap a card to peek at the original text underneath,
+    // long-press to copy the translation.
+    // ---------------------------------------------------------------------
+
+    var onCopied: ((String) -> Unit)? = null
+
+    private val gestures = GestureDetector(context, object : GestureDetector.SimpleOnGestureListener() {
+        override fun onDown(e: MotionEvent): Boolean = hitTest(e.x, e.y) != null
+
+        override fun onSingleTapUp(e: MotionEvent): Boolean {
+            val block = hitTest(e.x, e.y) ?: return false
+            block.hidden = !block.hidden
+            performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+            invalidate()
+            return true
+        }
+
+        override fun onLongPress(e: MotionEvent) {
+            val block = hitTest(e.x, e.y) ?: return
+            val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
+            clipboard?.setPrimaryClip(ClipData.newPlainText("translation", block.text))
+            performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+            block.flash = true
+            invalidate()
+            postDelayed({ block.flash = false; invalidate() }, 220)
+            onCopied?.invoke(block.text)
+        }
+    })
+
+    override fun onTouchEvent(event: MotionEvent): Boolean {
+        // Only consume touches that land on a card; everything else falls through
+        // to the parent (which dismisses the overlay).
+        return gestures.onTouchEvent(event)
+    }
+
+    private fun hitTest(x: Float, y: Float): DrawnBlock? {
+        val slop = 6f * resources.displayMetrics.density
+        return layouts.lastOrNull { b ->
+            x >= b.rect.left - slop && x <= b.rect.right + slop &&
+                y >= b.rect.top - slop && y <= b.rect.bottom + slop
+        }
+    }
+
     override fun onDraw(canvas: Canvas) {
         val density = resources.displayMetrics.density
         for (block in layouts) {
+            if (block.hidden) {
+                // Peek mode: just a thin outline so the user knows where to tap to restore.
+                canvas.drawRoundRect(block.rect, CARD_RADIUS_DP * density, CARD_RADIUS_DP * density, peekPaint)
+                continue
+            }
             val radius = if (block.isPill) block.rect.height() / 2f else CARD_RADIUS_DP * density
+            if (block.flash) {
+                canvas.drawRoundRect(block.rect, radius, radius, flashPaint)
+            }
             canvas.drawRoundRect(block.rect, radius, radius, backgroundPaint)
             canvas.drawRoundRect(block.rect, radius, radius, borderPaint)
 
             canvas.save()
             canvas.clipRect(block.rect)
             canvas.translate(block.textX, block.textY)
+            if (style.outline) {
+                // Draw a stroked copy underneath for readability on busy backgrounds.
+                val paint = block.layout.paint
+                val savedColor = paint.color
+                val savedStyle = paint.style
+                paint.style = Paint.Style.STROKE
+                paint.strokeWidth = (paint.textSize * 0.11f).coerceAtLeast(1.5f * density)
+                paint.strokeJoin = Paint.Join.ROUND
+                paint.color = if (isLight(style.textColor)) 0xD0000000.toInt() else 0xD0FFFFFF.toInt()
+                block.layout.draw(canvas)
+                paint.style = savedStyle
+                paint.color = savedColor
+            }
             block.layout.draw(canvas)
             canvas.restore()
         }
@@ -198,7 +296,7 @@ class TranslationCanvasView @JvmOverloads constructor(
         val text = item.text
         val rtl = isRtl(text)
         val srcLines = item.block.lineCount.coerceAtLeast(1)
-        val words = text.split(Regex("\\s+")).filter { it.isNotBlank() }
+        val words = text.split(WS).filter { it.isNotBlank() }
         val srcLineH = src.height() / srcLines
 
         // Vertical / very narrow OCR blocks (widget labels, rotated text) are
@@ -207,10 +305,8 @@ class TranslationCanvasView @JvmOverloads constructor(
         val isShortLabel = narrowSource || (srcLines <= 1 && words.size <= 4) || words.size <= 2
 
         textPaint.textLocale = if (rtl) Locale.forLanguageTag("ar") else Locale.getDefault()
-        textPaint.typeface = Typeface.create(
-            if (rtl) "sans-serif-medium" else "sans-serif",
-            Typeface.NORMAL
-        )
+        textPaint.typeface = style.typeface(rtl)
+        val userScale = style.scale
 
         // Tight padding: the card should hug the original text, not float around it.
         val padH = 4f * density
@@ -218,9 +314,9 @@ class TranslationCanvasView @JvmOverloads constructor(
 
         // Text size follows the source line height (headings stay big, captions
         // stay small), snapped to half-dp steps so labels look uniform.
-        val minSize = (if (rtl) 10.5f else 10f) * density
-        val maxSize = 42f * density
-        val base = snap((srcLineH * 0.80f).coerceIn(minSize, maxSize), density)
+        val minSize = (if (rtl) 10.5f else 10f) * density * userScale.coerceAtMost(1f)
+        val maxSize = 42f * density * userScale
+        val base = snap((srcLineH * 0.80f * userScale).coerceIn(minSize, maxSize), density)
         val sizes = generateSequence(base) { it - 0.5f * density }
             .takeWhile { it >= minSize - 0.01f }
             .toList()
@@ -232,7 +328,8 @@ class TranslationCanvasView @JvmOverloads constructor(
         // Width of the original text: the preferred layout width.
         val srcLayoutW = src.width().coerceIn(1f, maxLayoutW)
         // Preferred height: the original block plus a little slack for Arabic shaping.
-        val tightH = src.height() + 6f * density
+        // When the user enlarges text, let the card grow proportionally.
+        val tightH = src.height() * max(1f, userScale) + 6f * density
         val maxLines = if (isShortLabel) 2 else (srcLines + 3).coerceAtMost(16)
         val alignCenter = isShortLabel
 
@@ -330,7 +427,8 @@ class TranslationCanvasView @JvmOverloads constructor(
             layout = layout,
             textX = textX,
             textY = textY,
-            isPill = isPill
+            isPill = isPill,
+            text = text
         )
     }
 
@@ -459,7 +557,10 @@ class TranslationCanvasView @JvmOverloads constructor(
         val layout: StaticLayout,
         val textX: Float,
         var textY: Float,
-        var isPill: Boolean
+        var isPill: Boolean,
+        val text: String,
+        var hidden: Boolean = false,
+        var flash: Boolean = false
     )
 
     companion object {
@@ -467,5 +568,6 @@ class TranslationCanvasView @JvmOverloads constructor(
         private const val SCREEN_MARGIN_DP = 4f
         private const val CELL_GAP_DP = 3f
         private const val CARD_RADIUS_DP = 4f
+        private val WS = Regex("\\s+")
     }
 }
